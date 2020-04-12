@@ -1,0 +1,13 @@
+[package]
+name = "inheritance"
+version = "0.1.0"
+authors = ["MashPlant <740678788@qq.com>"]
+edition = "2018"
+
+[dependencies]
+syn = { version = "*", features = ["extra-traits", "full"] }
+proc-macro2 = "*"
+quote = "*"
+
+[lib]
+proc-macro = true
