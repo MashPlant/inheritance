@@ -70,27 +70,22 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
         let p = if let Some(p) = parent { p } else { panic!("struct `{}` is isolated from other ss", ident) };
         let deref_impl = deref_impl(ident, p);
         let enum_ident = Ident::new(&(ident.to_string() + &p.to_string()), ident.span());
+        let new_impl = new_impl(ident, p, fields, true);
         let p_enum_ident = Ident::new(&("Generic".to_string() + &p.to_string()), ident.span());
-        let fields_names = fields.iter().map(|f| &f.ident);
         quote! {
           #[repr(C)]
           #vis struct #ident {
             base: #p,
             #fields
           }
-
           #deref_impl
 
           #[repr(C, usize)]
           #vis enum #enum_ident { #ident(#ident) = #discriminant }
-
           impl #enum_ident {
-            pub fn new(base: #p, #fields) -> #enum_ident {
-              #enum_ident::#ident(#ident { base, #(#fields_names),* })
-            }
+            #new_impl
             pub fn upcast(&self) -> &#p_enum_ident { unsafe { ::core::mem::transmute(self) } }
           }
-
           impl ::core::ops::Deref for #enum_ident {
             type Target = #ident;
             fn deref(&self) -> &Self::Target { match self { #enum_ident::#ident(x) => x } }
@@ -106,6 +101,7 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
           quote! { #ident(#ident) = #d, }
         });
         let base = parent.as_ref().map(|p| quote! { base: #p, });
+        let new_impl = parent.as_ref().map(|p| new_impl(ident, p, fields, false));
         let deref_impl = parent.as_ref().map(|p| deref_impl(ident, p));
         let upcast = parent.as_ref().map(|p| {
           let p_enum_ident = Ident::new(&("Generic".to_string() + &p.to_string()), p.span());
@@ -121,15 +117,15 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
           quote! { pub unsafe trait #trait_ident { fn classof(d: usize) -> bool; } }
         };
         let trait_impl = if parent.is_some() {
-          let it = concrete_ch_idx.iter().chain(abstract_ch_idx.iter()).map(|&idx| &ss[idx].ident);
+          let it = concrete_ch_idx.iter().chain(abstract_ch_idx.iter()).map(|&idx| ss[idx].enum_ident());
           quote! { #(unsafe impl #trait_ident for #it {})* }
         } else {
           let it1 = concrete_ch_idx.iter().map(|&idx| {
-            let (ident, d) = (&ss[idx].ident, ss[idx].discriminant);
+            let (ident, d) = (ss[idx].enum_ident(), ss[idx].discriminant);
             quote! { unsafe impl #trait_ident for #ident { fn classof(d: usize) -> bool { d == #d } } }
           });
           let it2 = abstract_ch_idx.iter().map(|&idx| {
-            let ident = &ss[idx].ident;
+            let ident = ss[idx].enum_ident();
             let ds = ss[idx].concrete_ch_idx.iter().map(|&idx| ss[idx].discriminant);
             quote! { unsafe impl #trait_ident for #ident { fn classof(d: usize) -> bool { #(d == #ds) ||* } } }
           });
@@ -141,12 +137,11 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
             #base
             #fields
           }
-
+          impl #ident { #new_impl }
           #deref_impl
 
           #[repr(C, usize)]
           #vis enum #enum_ident { #(#variants)* }
-
           impl ::core::ops::Deref for #enum_ident {
             type Target = #ident;
             fn deref(&self) -> &Self::Target {
@@ -158,7 +153,6 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
               unsafe { &mut *((self as *mut _ as *mut u8).add(::core::mem::size_of::<usize>()) as *mut _) }
             }
           }
-
           impl #enum_ident {
             #upcast
             pub fn downcast<T: #trait_ident>(&self) -> Option<&T> {
@@ -168,7 +162,6 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
               unsafe { if T::classof(*(self as *const _ as *const usize)) { Some(::core::mem::transmute(self)) } else { None } }
             }
           }
-
           #trait_def
           #trait_impl
         }
@@ -191,6 +184,16 @@ struct ItemStruct {
   concrete_ch_idx: Vec<usize>,
   abstract_ch_idx: Vec<usize>,
   discriminant: usize,
+}
+
+impl ItemStruct {
+  fn enum_ident(&self) -> Ident {
+    let name = self.ident.to_string();
+    let name = if self.direct_ch_idx.is_empty() {
+      name + &self.parent.as_ref().unwrap().to_string()
+    } else { "Generic".to_string() + &name };
+    Ident::new(&name, self.ident.span())
+  }
 }
 
 impl Parse for ItemStruct {
@@ -226,4 +229,13 @@ fn deref_impl(ident: &Ident, p: &Ident) -> proc_macro2::TokenStream {
       fn deref_mut(&mut self) -> &mut Self::Target { &mut self.base }
     }
   }
+}
+
+fn new_impl(ident: &Ident, p: &Ident, fields: &Punctuated<Field, Token![,]>, is_enum: bool) -> proc_macro2::TokenStream {
+  let fields_names = fields.iter().map(|f| &f.ident);
+  let field_name_tys = fields.iter().map(
+    |Field { ident, ty, .. }| quote! { #ident: #ty });
+  let mut ret = quote! { #ident { base, #(#fields_names),* } };
+  if is_enum { ret = quote! { Self::#ident(#ret) }; }
+  quote! { pub fn new(base: #p, #(#field_name_tys),*) -> Self { #ret } }
 }

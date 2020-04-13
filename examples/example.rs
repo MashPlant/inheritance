@@ -35,7 +35,30 @@ inheritance::inheritance!(
   pub struct RectY: RectX {}
 );
 
+fn work(s: &GenericShape) {
+  if let Some(ca) = s.downcast::<CircleACircle>() {
+    println!("CircleA, data = {}", ca.data);
+  }
+  if let Some(c) = s.downcast::<GenericCircle>() {
+    println!("Circle, radius = {}", c.radius);
+  }
+  if let Some(t) = s.downcast::<TriangleShape>() {
+    println!("Triangle, b = {}", t.b);
+  }
+  if let Some(_) = s.downcast::<GenericRectX>() {
+    println!("RectX");
+  }
+  if let Some(_) = s.downcast::<RectYRectX>() {
+    println!("RectY");
+  }
+}
+
 fn main() {
-  // use std::f32::consts::PI;
-  // let c = CircleA::new(Circle {  });
+  use std::f32::consts::{PI, SQRT_2};
+  let ca = CircleACircle::new(Circle::new(Shape { area: PI, circumference: 2.0 * PI }, 1.0), 123);
+  work(ca.upcast().upcast());
+  let t = TriangleShape::new(Shape { area: 0.2, circumference: 2.0 + SQRT_2 }, 1.0, 1.0, SQRT_2);
+  work(t.upcast());
+  let r = RectYRectX::new(RectX::new(Rect::new(Shape { area: 1.0, circumference: 4.0 }, 1.0, 1.0)));
+  work(r.upcast().upcast().upcast());
 }
