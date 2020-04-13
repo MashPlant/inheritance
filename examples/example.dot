@@ -1,0 +1,17 @@
+digraph {
+  Shape -> Circle
+  Shape -> Rect
+  Shape -> Triangle
+  Circle -> CircleA
+  Circle -> CircleB
+  Rect -> RectX
+  RectX -> RectY
+  Shape[label = "Shape\n{ 0, 1, 2, 3 }", shape = "circle"]
+  Circle[label = "Circle\n{ 0, 1 }", shape = "circle"]
+  Rect[label = "Rect\n{ 2 }", shape = "circle"]
+  CircleA[label = "CircleA\n{ 0 }", shape = "circle"]
+  CircleB[label = "CircleB\n{ 1 }", shape = "circle"]
+  RectX[label = "RectX\n{ 2 }", shape = "circle"]
+  RectY[label = "RectY\n{ 2 }", shape = "circle"]
+  Triangle[label = "Triangle\n{ 3 }", shape = "circle"]
+}

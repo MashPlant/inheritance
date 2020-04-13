@@ -2,7 +2,6 @@
 extern crate inheritance;
 
 inheritance::inheritance!(
-  // note: keep privacy notation
   pub struct Shape {
     pub area: f32,
     pub circumference: f32
@@ -23,15 +22,17 @@ inheritance::inheritance!(
     c: f32
   }
 
-  pub struct SpecialCircleA : Circle {
+  pub struct CircleA : Circle {
     data: u32,
   }
 
-  pub struct SpecialCircleB : Circle {
+  pub struct CircleB : Circle {
     data: u64,
   }
 
-  pub struct SpecialRect : Rect {}
+  pub struct RectX : Rect {}
+
+  pub struct RectY : RectX {}
 );
 
 
