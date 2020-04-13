@@ -61,22 +61,48 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
       }
     }
   }
-  for s in &structs {
-    println!("{:?}", s);
-  }
   let it = structs.iter().map(
-    |ItemStruct { vis, ident, parent, fields, parent_idx, children_idx, visit_time, concrete_children_idx, discriminant }| {
+    |ItemStruct { vis, ident, parent, fields, children_idx, concrete_children_idx, discriminant, .. }| {
       if children_idx.is_empty() {
         let p = if let Some(p) = parent { p } else { panic!("struct `{}` is isolated from other structs", ident) };
         let enum_ident = Ident::new(&(ident.to_string() + &p.to_string()), ident.span());
+        let p_enum_ident = Ident::new(&("Generic".to_string() + &p.to_string()), ident.span());
+        let fields_names = fields.iter().map(|f| &f.ident);
         quote! {
           #[repr(C)]
           #vis struct #ident {
             base: #p,
             #fields
           }
+
+          impl ::core::ops::Deref for #ident {
+            type Target = #p;
+            fn deref(&self) -> &Self::Target { &self.base }
+          }
+
+          impl ::core::ops::DerefMut for #ident {
+            fn deref_mut(&mut self) -> &mut Self::Target { &mut self.base }
+          }
+
           #[repr(C, usize)]
           #vis enum #enum_ident { #ident(#ident) = #discriminant }
+
+          impl #enum_ident {
+            pub fn new(base: #p, #fields) -> #enum_ident {
+              #enum_ident::#ident(#ident { base, #(#fields_names),* })
+            }
+
+            pub fn upcast(&self) -> &#p_enum_ident { unsafe { ::core::mem::transmute(self) } }
+          }
+
+          impl ::core::ops::Deref for #enum_ident {
+            type Target = #ident;
+            fn deref(&self) -> &Self::Target { match self { #enum_ident::#ident(x) => x } }
+          }
+
+          impl ::core::ops::DerefMut for #enum_ident {
+            fn deref_mut(&mut self) -> &mut Self::Target { match self { #enum_ident::#ident(x) => x } }
+          }
         }
       } else {
         let enum_ident = Ident::new(&("Generic".to_string() + &ident.to_string()), ident.span());
@@ -87,8 +113,22 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
         quote! {
           #[repr(C)]
           #vis struct #ident { #fields }
+
           #[repr(C, usize)]
           #vis enum #enum_ident { #(#variants)* }
+
+          impl ::core::ops::Deref for #enum_ident {
+            type Target = #ident;
+            fn deref(&self) -> &Self::Target {
+              unsafe { &*((self as *const _ as *const u8).add(::core::mem::size_of::<usize>()) as *const _) }
+            }
+          }
+
+          impl ::core::ops::DerefMut for #enum_ident {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+              unsafe { &mut *((self as *mut _ as *mut u8).add(::core::mem::size_of::<usize>()) as *mut _) }
+            }
+          }
         }
       }
     });

@@ -16,7 +16,7 @@ inheritance::inheritance!(
     height: f32
   }
 
-  pub(crate) struct Triangle : Shape {
+  pub struct Triangle : Shape {
     a: f32,
     b: f32,
     c: f32
