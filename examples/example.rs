@@ -35,7 +35,7 @@ inheritance::inheritance!(
   pub struct RectY: RectX {}
 );
 
-fn work(s: &GenericShape) {
+fn test1(s: &GenericShape) {
   if let Some(ca) = s.downcast::<CircleACircle>() {
     println!("CircleA, data = {}", ca.data);
   }
@@ -53,12 +53,35 @@ fn work(s: &GenericShape) {
   }
 }
 
+fn test2(s: &mut GenericShape) {
+  // do some arbitrary mutation, disrespecting the contract of `Shape`
+  if let Some(c) = s.downcast_mut::<GenericCircle>() {
+    c.radius = c.circumference;
+  }
+  if let Some(t) = s.downcast_mut::<TriangleShape>() {
+    t.b = t.c * 2.0;
+    t.a = t.b * 2.0;
+  }
+  if let Some(r) = s.downcast_mut::<RectYRectX>() {
+    r.height *= 2.0;
+  }
+}
+
 fn main() {
   use std::f32::consts::{PI, SQRT_2};
-  let ca = CircleACircle::new(Circle::new(Shape { area: PI, circumference: 2.0 * PI }, 1.0), 123);
-  work(ca.upcast().upcast());
-  let t = TriangleShape::new(Shape { area: 0.2, circumference: 2.0 + SQRT_2 }, 1.0, 1.0, SQRT_2);
-  work(t.upcast());
-  let r = RectYRectX::new(RectX::new(Rect::new(Shape { area: 1.0, circumference: 4.0 }, 1.0, 1.0)));
-  work(r.upcast().upcast().upcast());
+  let mut ca = CircleACircle::new(Circle::new(Shape { area: PI, circumference: 2.0 * PI }, 1.0), 123);
+  let mut t = TriangleShape::new(Shape { area: 0.2, circumference: 2.0 + SQRT_2 }, 1.0, 1.0, SQRT_2);
+  let mut r = RectYRectX::new(RectX::new(Rect::new(Shape { area: 1.0, circumference: 4.0 }, 1.0, 1.0)));
+  test1(ca.upcast().upcast());
+  test1(t.upcast());
+  test1(r.upcast().upcast().upcast());
+  // `upcast_mut` is inevitably unsafe, the user of this mut reference must ensure that it will not assign other variants to it
+  unsafe {
+    test2(ca.upcast_mut().upcast_mut());
+    println!("{}", ca.circumference);
+    test2(t.upcast_mut());
+    println!("{} {} {}", t.a, t.b, t.c);
+    test2(r.upcast_mut().upcast_mut().upcast_mut());
+    println!("{}", r.height);
+  }
 }

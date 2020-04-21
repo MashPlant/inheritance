@@ -72,6 +72,7 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
         let enum_ident = Ident::new(&(ident.to_string() + &p.to_string()), ident.span());
         let new_impl = new_impl(ident, p, fields, true);
         let p_enum_ident = Ident::new(&("Generic".to_string() + &p.to_string()), ident.span());
+        let upcast = upcast(&p_enum_ident);
         quote! {
           #[repr(C)]
           #vis struct #ident {
@@ -84,7 +85,7 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
           #vis enum #enum_ident { #ident(#ident) = #discriminant }
           impl #enum_ident {
             #new_impl
-            pub fn upcast(&self) -> &#p_enum_ident { unsafe { ::core::mem::transmute(self) } }
+            #upcast
           }
           impl ::core::ops::Deref for #enum_ident {
             type Target = #ident;
@@ -103,10 +104,7 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
         let base = parent.as_ref().map(|p| quote! { base: #p, });
         let new_impl = parent.as_ref().map(|p| new_impl(ident, p, fields, false));
         let deref_impl = parent.as_ref().map(|p| deref_impl(ident, p));
-        let upcast = parent.as_ref().map(|p| {
-          let p_enum_ident = Ident::new(&("Generic".to_string() + &p.to_string()), p.span());
-          quote! { pub fn upcast(&self) -> &#p_enum_ident { unsafe { ::core::mem::transmute(self) } } }
-        });
+        let upcast = parent.as_ref().map(|p| upcast(&Ident::new(&("Generic".to_string() + &p.to_string()), p.span())));
         let trait_ident = Ident::new(&(ident.to_string() + "Info"), ident.span());
         // the trait must be unsafe because one can implement it on other types without unsafe code easily
         // which makes `downcast` / `downcast_mut` able to cast into these types, which is unsafe
@@ -238,4 +236,11 @@ fn new_impl(ident: &Ident, p: &Ident, fields: &Punctuated<Field, Token![,]>, is_
   let mut ret = quote! { #ident { base, #(#fields_names),* } };
   if is_enum { ret = quote! { Self::#ident(#ret) }; }
   quote! { pub fn new(base: #p, #(#field_name_tys),*) -> Self { #ret } }
+}
+
+fn upcast(p_enum_ident: &Ident) -> proc_macro2::TokenStream {
+  quote! {
+    pub fn upcast(&self) -> &#p_enum_ident { unsafe { ::core::mem::transmute(self) } }
+    pub unsafe fn upcast_mut(&mut self) -> &mut #p_enum_ident { ::core::mem::transmute(self) }
+  }
 }
