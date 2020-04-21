@@ -2,11 +2,13 @@
 extern crate inheritance;
 
 inheritance::inheritance!(
+  #[derive(Debug)]
   pub struct Shape {
     pub area: f32,
     pub circumference: f32
   }
 
+  #[derive(Debug)]
   pub struct Circle: Shape {
     pub(crate) radius: f32
   }
@@ -22,6 +24,7 @@ inheritance::inheritance!(
     c: f32
   }
 
+  #[derive(Debug)]
   pub struct CircleA: Circle {
     data: u32,
   }
@@ -84,4 +87,5 @@ fn main() {
     test2(r.upcast_mut().upcast_mut().upcast_mut());
     println!("{}", r.height);
   }
+  println!("{:?}", &*ca);
 }

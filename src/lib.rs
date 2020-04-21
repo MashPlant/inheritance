@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::{braced, parse_macro_input, Visibility, Field, Result, Token, Ident};
+use syn::{braced, parse_macro_input, Visibility, Field, Result, Token, Ident, Attribute};
 use quote::quote;
 use std::collections::HashMap;
 
@@ -65,7 +65,7 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
     }
   }
   let it = ss.iter().map(
-    |ItemStruct { vis, ident, parent, fields, direct_ch_idx, concrete_ch_idx, abstract_ch_idx, discriminant, .. }| {
+    |ItemStruct { attrs, vis, ident, parent, fields, direct_ch_idx, concrete_ch_idx, abstract_ch_idx, discriminant, .. }| {
       if direct_ch_idx.is_empty() {
         let p = if let Some(p) = parent { p } else { panic!("struct `{}` is isolated from other ss", ident) };
         let deref_impl = deref_impl(ident, p);
@@ -75,8 +75,9 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
         let upcast = upcast(&p_enum_ident);
         quote! {
           #[repr(C)]
+          #(#attrs)*
           #vis struct #ident {
-            base: #p,
+            pub base: #p,
             #fields
           }
           #deref_impl
@@ -101,7 +102,7 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
           let (ident, d) = (&ss[idx].ident, ss[idx].discriminant);
           quote! { #ident(#ident) = #d, }
         });
-        let base = parent.as_ref().map(|p| quote! { base: #p, });
+        let base = parent.as_ref().map(|p| quote! { pub base: #p, });
         let new_impl = parent.as_ref().map(|p| new_impl(ident, p, fields, false));
         let deref_impl = parent.as_ref().map(|p| deref_impl(ident, p));
         let upcast = parent.as_ref().map(|p| upcast(&Ident::new(&("Generic".to_string() + &p.to_string()), p.span())));
@@ -131,6 +132,7 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
         };
         quote! {
           #[repr(C)]
+          #(#attrs)*
           #vis struct #ident {
             #base
             #fields
@@ -171,6 +173,7 @@ pub fn inheritance(input: TokenStream) -> TokenStream {
 // todo: support Generics & other forms of struct later
 #[derive(Debug)]
 struct ItemStruct {
+  attrs: Vec<Attribute>,
   vis: Visibility,
   ident: Ident,
   parent: Option<Ident>,
@@ -197,13 +200,14 @@ impl ItemStruct {
 impl Parse for ItemStruct {
   fn parse(input: ParseStream) -> Result<Self> {
     let content;
+    let attrs = input.call(Attribute::parse_outer)?;
     let vis = input.parse()?;
     let _ = input.parse::<Token![struct]>()?;
     let ident = input.parse()?;
     let parent = if input.parse::<Token![:]>().is_ok() { Some(input.parse()?) } else { None };
     let _ = braced!(content in input);
     let fields = content.parse_terminated(Field::parse_named)?;
-    Ok(ItemStruct { vis, ident, parent, fields, parent_idx: None, direct_ch_idx: Vec::new(), visit_time: 0, concrete_ch_idx: Vec::new(), abstract_ch_idx: Vec::new(), discriminant: 0 })
+    Ok(ItemStruct { attrs, vis, ident, parent, fields, parent_idx: None, direct_ch_idx: Vec::new(), visit_time: 0, concrete_ch_idx: Vec::new(), abstract_ch_idx: Vec::new(), discriminant: 0 })
   }
 }
 
